@@ -54,6 +54,7 @@ __RCSID("$NetBSD: main.c,v 1.48 2003/09/14 12:09:29 jmmv Exp $");
 #include <fcntl.h>
 #include <linux/input.h>
 #include <ctype.h>
+#include <sys/reboot.h>
 
 #include "shell.h"
 #include "main.h"
@@ -142,6 +143,22 @@ static int check_boot_to_or()
 	return res;
 }
 
+static int check_boot_to_bl()
+{
+	//check if key volume down is pressed
+	char key_states[KEY_MAX/8 + 1];
+	memset(key_states, 0, sizeof(key_states));
+	
+	// /dev/input/event4 is the kdb
+	int fd = open("/dev/input/event4", O_RDWR);
+	int res = 0;
+	if ( ioctl(fd, EVIOCGKEY(sizeof(key_states)), key_states) )
+		res = (key_states[KEY_VOLUMEDOWN/8] & (1<<(KEY_VOLUMEDOWN%8))) != 0;
+	
+	close(fd);
+	return res;
+}
+
 static void get_hardware_name(char* hardware)
 {
 	char data[1024];
@@ -205,6 +222,8 @@ main(int argc, char **argv)
 			//initializes lite OR and restarts the init
 			execl(buff, buff, NULL );	
 		}
+		else if (check_boot_to_bl())
+			__reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_RESTART2, "bootloader");
 		else
 			argv[1]=SH_INIT_SCRIPT;
 	}
